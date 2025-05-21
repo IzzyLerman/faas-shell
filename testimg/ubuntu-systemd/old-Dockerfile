@@ -1,0 +1,42 @@
+FROM ubuntu:24.04
+
+# Install systemd and essential packages
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends \
+    systemd \
+    dbus \
+    iproute2 \
+    curl \
+    ca-certificates \
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/*
+
+# Set up systemd - keep only the essential services
+RUN cd /lib/systemd/system/sysinit.target.wants/ \
+    && rm -f $(ls | grep -v systemd-tmpfiles-setup) \
+    && rm -f /lib/systemd/system/multi-user.target.wants/* \
+    && rm -f /etc/systemd/system/*.wants/* \
+    && rm -f /lib/systemd/system/local-fs.target.wants/* \
+    && rm -f /lib/systemd/system/sockets.target.wants/*udev* \
+    && rm -f /lib/systemd/system/sockets.target.wants/*initctl* \
+    && rm -f /lib/systemd/system/basic.target.wants/* \
+    && rm -f /lib/systemd/system/anaconda.target.wants/* \
+    && mkdir -p /run/systemd/system
+
+# Create a test user for systemd --user services
+RUN useradd -m testuser \
+    && mkdir -p /run/user/1000 \
+    && chown testuser:testuser /run/user/1000 \
+    && chmod 700 /run/user/1000 \
+    && systemctl enable systemd-user-sessions.service
+
+# Set up environment for systemd --user
+ENV container docker
+ENV XDG_RUNTIME_DIR /run/user/1000
+ENV DBUS_SESSION_BUS_ADDRESS unix:path=/run/user/1000/bus
+
+# Expose default container ports
+EXPOSE 80 443
+
+# Command to run when container starts
+CMD ["/sbin/init"]
